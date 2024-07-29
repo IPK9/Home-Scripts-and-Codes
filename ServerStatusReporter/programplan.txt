@@ -1,1 +1,57 @@
+This document is specifically to document the purpose of each program, script or process within the "ServerStatusReporter" folder in my "Home-Scripts-and-Codes" repository.
 
+Document Version: 1.0
+-------------------------------------------------------------------------------------------------------------------------------------
+
+Program 1: "Data Puller for Clients.py"
+
+This python (.py) script is to begin building the processes and code behind pulling system data. This will not have any functionality
+around sending data to other machines as that is not implemented in this area. This serves as an experiment which I can adapt when
+the correct, suitable data is being pulled and formatted from the machine. I will implement the code in here to the 
+ServerStatusClient area of the program. 
+
+Metrics being collected: 
+
+Hardware: 
+CPU Usage per core in % | CPU Temperature | RAM usage in used/free format | Disk Usage in
+used/free format per drive/partition | Disk Read/Write Bytes per second | Disk Latency | Bytes sent/recieved per second per network
+adapter | GPU Usage in % | VRAM Usage in used/free format | GPU Temperature | Power consumption of the system | Network Latency 
+between the client and the server |
+
+Software:
+Process Count | Top Processes by CPU Usage | Top Processes by Memory Usage | Error and Warning Rates/count | System Boot Time |
+
+-------------------------------------------------------------------------------------------------------------------------------------
+
+Program 2: "ServerStatusClient.py"
+
+This python (.py) scrpit is the program which runs the commands to pull the data specified in Program 1. The difference between this
+and program number 1 is that the client edition allows the system to have a connection to a server which is specified in the 
+configuration file. This means the majority of Program 1 will be wrapped within a socket and def statements so that the system 
+collects metrics when requested from the server machine.
+
+-------------------------------------------------------------------------------------------------------------------------------------
+
+Program 3: "ServerStatusServer.py"
+
+This python (.py) script is the program which allows the client edition to connect to the server. This program will also contain the 
+majority of the configurable values for both the server and the client machines. Each client will have individual/shared
+configuration files which is controlled and read by this version of the program. 
+
+Ideally, I would like this program to have a frontend GUI for configuration and viewing as well as hosting a webpage on the local
+network which I can port forward to access from other areas. To do this I will need to configure a username/password system for it 
+to be secure. 
+
+Following up from that. It would be useful to have usage graphs which can have the timelines changed/adapted to the users needs. I
+will need to adopt or integrate some sort of database integration/management to hold statistics for x number of days before deleting
+old data which is no longer needed. A long timeframe is incredibly important because the programs I will be building may need to run
+for long periods of time so monitoring usage statistics/monitoring for memory leaks will be incredibly important later on down the 
+line.
+
+Using the multithreading or multiprocess library within Python should mean that the program speed and efficiency is greatly improved.
+This program needs to be lightweight, easy to run, configure and access for all users. Being able to implement some method of having
+plugins as well would be very useful for future upgrades and in case this program gets enough exposure that others begin using it 
+widespread. Plugins should be managed centrally by this program and automatically deployed to the client when installed. This should
+also have a central repository on github (or other services) for people to upload their own plugins for others to use. 
+
+------------------------------------------------------------------------------------------------------------------------------
