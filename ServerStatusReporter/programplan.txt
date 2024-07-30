@@ -21,6 +21,8 @@ between the client and the server |
 Software:
 Process Count | Top Processes by CPU Usage | Top Processes by Memory Usage | Error and Warning Rates/count | System Boot Time |
 
+Currently implemented features: CPU Usage per core in % | CPU Temperature | RAM usage in used/free format |
+
 -------------------------------------------------------------------------------------------------------------------------------------
 
 Program 2: "ServerStatusClient.py"
