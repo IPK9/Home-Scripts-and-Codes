@@ -17,11 +17,8 @@ import platform
 import subprocess
 
 
-# Get Hardware Statistic Values
-cpu_per_core = psutil.cpu_percent(percpu=True) # CPU Usage per core
-memory_info = psutil.virtual_memory() # Physical RAM details
-used_memory_mb = memory_info.used / (1024 * 1024) # Used RAM converted to MB
-free_memory_mb = memory_info.available / (1024 * 1024) # Free RAM converted
+
+
 
 # Get CPU Temperature (Cross Platform)
 def get_cpu_temperature():
@@ -63,11 +60,27 @@ def get_cpu_temperature_mac():
     except Exception as e:
         return f"Could not read temperature on Mac: {e}"
 
+def get_disk_usage():
+    # get disk usage statistics
+    disk_usage = psutil.disk_usage('/')
+    
+    # total bytes to gigabytes
+    total_gb = disk_usage.total / (1024 ** 3)
+    used_gb = disk_usage.used / (1024 ** 3)
+    free_gb = disk_usage.free / (1024 ** 3)
+    print(f"Total Disk Space: {total_gb:.2f} GB")
+    print(f"Used Disk Space: {used_gb:.2f} GB")
+    print(f"Free Disk Space: {free_gb:.2f} GB")
+
+
+
+# Get Hardware Statistic Values
+cpu_per_core = psutil.cpu_percent(percpu=True) # CPU Usage per core
+memory_info = psutil.virtual_memory() # Physical RAM details
+used_memory_mb = memory_info.used / (1024 * 1024) # Used RAM converted to MB
+free_memory_mb = memory_info.available / (1024 * 1024) # Free RAM converted
 cpu_temperature = get_cpu_temperature()
-print(f"CPU Temperature: {cpu_temperature} °C")
-
-
-
+get_disk_usage()
 
 
 
@@ -79,6 +92,8 @@ for i, percentage in enumerate(cpu_per_core):
     print(f"Core {i}: {percentage}%")
 print(f"Used Physical Memory: {used_memory_mb:.2f} MB")
 print(f"Free Physical Memory: {free_memory_mb:.2f} MB")
+print(f"CPU Temperature: {cpu_temperature} °C")
+
 
 
 
