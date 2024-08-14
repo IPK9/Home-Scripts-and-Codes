@@ -21,7 +21,12 @@ between the client and the server |
 Software:
 Process Count | Top Processes by CPU Usage | Top Processes by Memory Usage | Error and Warning Rates/count | System Boot Time |
 
-Currently implemented features: CPU Usage per core in % | CPU Temperature | RAM usage in used/free format |
+
+Currently implemented features: CPU Usage per core in % | CPU Temperature | RAM usage in used/free format | Disk Usage in used/free 
+format per drive/partition | Disk Read/Write Bytes per second | Bytes sent/recieved per second per network adapter | 
+
+Possible Issues: Disk latency requires reading/writing to disk constantly. This will reduce life of HW and increase resource usage
+unnecessarily.
 
 -------------------------------------------------------------------------------------------------------------------------------------
 
