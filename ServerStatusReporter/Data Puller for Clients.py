@@ -127,7 +127,32 @@ def get_cpu_usage(): # gets cpu usage per logical core.
     for i, percentage in enumerate(cpu_per_core):
         print(f"Core {i}: {percentage}%")
         
+def get_network_io_per_second(interval=1):
+    #capture the network stats at the beginning
+    network_io_start = psutil.net_io_counters(pernic=True)
+    
+    #wait for interval duration
+    time.sleep(interval)
+    
+    #capture the network stats after the interval
+    network_io_end = psutil.net_io_counters(pernic=True)
+    
+    # calculate the bytes sent and recieved per second for each adapter
+    network_speed = {}
+    for adapter in network_io_start.keys():
+        sent_per_sec = (network_io_end[adapter].bytes_sent - network_io_start[adapter].bytes_sent) / interval
+        recv_per_sec = (network_io_end[adapter].bytes_recv - network_io_start[adapter].bytes_recv / interval)
+        network_speed[adapter] = {"sent_per_sec": sent_per_sec, "recv_per_sec": recv_per_sec}
         
+    return network_speed
+
+interval = 1
+network_speeds = get_network_io_per_second(interval)
+
+for adapter, speed in network_speeds.items():
+    print(f"Adapter: {adapter}")
+    print(f"Bytes sent per second: {speed['sent_per_sec']:.2f} B/s")
+    print(f"Bytes received per second: {speed['recv_per_sec']:.2f} B/s\n")
     
 get_disk_usage()
 get_memory_usage()
