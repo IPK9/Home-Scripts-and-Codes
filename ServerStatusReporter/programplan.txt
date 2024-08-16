@@ -1,6 +1,6 @@
 This document is specifically to document the purpose of each program, script or process within the "ServerStatusReporter" folder in my "Home-Scripts-and-Codes" repository.
 
-Document Version: 1.0
+Document Version: 1.7
 -------------------------------------------------------------------------------------------------------------------------------------
 
 Program 1: "Data Puller for Clients.py"
@@ -15,28 +15,46 @@ Metrics being collected:
 Hardware: 
 CPU Usage per core in % | CPU Temperature | RAM usage in used/free format | Disk Usage in
 used/free format per drive/partition | Disk Read/Write Bytes per second | Disk Latency | Bytes sent/recieved per second per network
-adapter | GPU Usage in % | VRAM Usage in used/free format | GPU Temperature | Power consumption of the system | Network Latency 
+adapter | GPU Usage in % | VRAM Usage in used/free format | GPU Temperature | Power consumption of the system* | Network Latency 
 between the client and the server |
 
 Software:
 Process Count | Top Processes by CPU Usage | Top Processes by Memory Usage | Error and Warning Rates/count | System Boot Time |
+System Uptime |
 
 
 Currently implemented features: CPU Usage per core in % | CPU Temperature | RAM usage in used/free format | Disk Usage in used/free 
-format per drive/partition | Disk Read/Write Bytes per second | Bytes sent/recieved per second per network adapter | 
+format per drive/partition | Disk Read/Write Bytes per second | Bytes sent/recieved per second per network adapter | Process Count |
+Top Processes by CPU Usage | Top Processes by Memory Usage | Error and Warning Rates/count | System Boot Time | System Uptime
 
-Possible Issues: Disk latency requires reading/writing to disk constantly. This will reduce life of HW and increase resource usage
-unnecessarily.
+Possible Issues: 
+Disk latency requires reading/writing to disk constantly. This will reduce life of HW and increase resource usage
+unnecessarily. (This is now implemented, will have to make the frequency changable)
+GPU Usage, VRAM Usage and GPU Temperature is difficult to implement due to compatibility between vendors and Operating Systems,
+further investigation is required here before implementation. Will come later on... Hopefully.
+* Power consumption of the system will most likely never be implemented due to the lack of support for power monitoring around the 
+majority of machines. Possible implementation as and where I can if there is high demand for this but direct, accurate monitoring 
+will be impossible for most machines.
+Network Latency between the client and the server is possible and easy to implement but has to be in the Client program, not this one
+due to the lack of any possibility of network connections (Local machine only).
+This program uses win32evtlog which I believe to only be available on Windows. I will need to look into an alternative for Linux and 
+Mac machines. I also need a method of testing the program over multiple operating systems.
 
+Current Status:
+This program is currently 100% completion. This will change as program requirements change and features are added here before being
+implemented into the client or server version of the program. 
 -------------------------------------------------------------------------------------------------------------------------------------
 
 Program 2: "ServerStatusClient.py"
 
-This python (.py) scrpit is the program which runs the commands to pull the data specified in Program 1. The difference between this
+This python (.py) script is the program which runs the commands to pull the data specified in Program 1. The difference between this
 and program number 1 is that the client edition allows the system to have a connection to a server which is specified in the 
 configuration file. This means the majority of Program 1 will be wrapped within a socket and def statements so that the system 
 collects metrics when requested from the server machine.
 
+Current Status: 
+This program has not been started or looked into yet. Production will begin shortly as the local client program has been created and 
+completed to a state where building multi-machine connections is now appropriate.
 -------------------------------------------------------------------------------------------------------------------------------------
 
 Program 3: "ServerStatusServer.py"
@@ -61,4 +79,7 @@ plugins as well would be very useful for future upgrades and in case this progra
 widespread. Plugins should be managed centrally by this program and automatically deployed to the client when installed. This should
 also have a central repository on github (or other services) for people to upload their own plugins for others to use. 
 
+Current Status: 
+This program has not been started or looked into yet. Production will begin shortly as the local client program has been created and 
+completed to a state where building multi-machine connections is now appropriate.
 ------------------------------------------------------------------------------------------------------------------------------

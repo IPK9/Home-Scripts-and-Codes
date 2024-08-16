@@ -1,5 +1,5 @@
 #
-#       ServerStatus - V0.1
+#       ServerStatus - V1.0
 #
 #   This section of the program is purely to pull data from the client
 #   machines when requested by the server machine. This is just a small
@@ -12,12 +12,11 @@
 
 # import libraries
 import psutil
-from psutil import *
 import platform
 import subprocess
 import time
-
-
+import win32evtlog
+import datetime
 
 
 
@@ -63,28 +62,50 @@ def get_cpu_temperature_mac(): # prerequisite for get_cpu_temperature
     except Exception as e:
         return f"Could not read temperature on Mac: {e}"
 
-def get_disk_usage(): # Disk usage in used/total/free format
-    partitions = psutil.disk_partitions() # lists all of the partitions
-    
-    for partition in partitions:
-        if partition.fstype: # Ensure the partition has a filesystem type
-            try:
-                disk_usage = psutil.disk_usage(partition.mountpoint) #
-                
-                total_gb = disk_usage.total / (1024 ** 3)
-                used_gb = disk_usage.used / (1024 ** 3)
-                free_gb = disk_usage.free / (1024 ** 3)
-                
-                print (f"Partition: {partition.device}")
-                print (f"  Mountpoint: {partition.mountpoint}")
-                print (f"  File system type: {partition.fstype}")
-                print (f"  Total Disk Space: {total_gb:.2f} GB")
-                print (f"  Used Disk Space: {used_gb:.2f} GB")
-                print (f"  Free Disk Space: {free_gb:.2f} GB")
-                print()
-            except PermissionError: # Handle permission errors where the script doesn't have permissions
-                print(f"Permission denied for partition: {partition.device}")
-                print()
+
+def get_logical_drives():
+    try:
+        # Use WMIC to list logical drives
+        command = "wmic logicaldisk get DeviceID"
+        result = subprocess.check_output(command, shell=True).decode().strip().split("\n")[1:]
+        # Clean up the result to get a list of drive letters
+        drives = [drive.strip() for drive in result if drive.strip()]
+        return drives
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to retrieve logical drives - {e}")
+        return []
+
+def get_disk_usage_via_wmic():
+    drives = get_logical_drives()  # Get the list of logical drives
+
+    for drive_letter in drives:
+        try:
+            # Execute the WMIC command to get the Size and FreeSpace of the given drive
+            command = f"wmic logicaldisk where \"DeviceID='{drive_letter}'\" get Size,FreeSpace"
+            result = subprocess.check_output(command, shell=True).decode().strip().split("\n")[1].split()
+            
+            # Extract the size and free space from the result
+            total_bytes = int(result[0])
+            free_bytes = int(result[1])
+            used_bytes = free_bytes - total_bytes
+            
+            # Convert bytes to GB
+            total_gb = total_bytes / (1024 ** 3)
+            used_gb = used_bytes / (1024 ** 3)
+            free_gb = free_bytes / (1024 ** 3)
+            
+            # Print the disk usage information
+            print(f"Partition: {drive_letter}")
+            print(f"  Total Disk Space: {total_gb:.2f} GB")
+            print(f"  Used Disk Space: {used_gb:.2f} GB")
+            print(f"  Free Disk Space: {free_gb:.2f} GB")
+            print()
+        except subprocess.CalledProcessError as e:
+            print(f"Failed to retrieve disk usage for {drive_letter} - {e}")
+            print()
+        except Exception as e:
+            print(f"An unexpected error occurred for partition: {drive_letter} - {e}")
+            print() 
                 
 def get_disk_io_counters(interval=1): # prerequisite for monitor_disk_io
     # Get initial disk IO counters
@@ -128,6 +149,8 @@ def get_cpu_usage(): # gets cpu usage per logical core.
         print(f"Core {i}: {percentage}%")
         
 def get_network_io_per_second(interval=1):
+    
+
     #capture the network stats at the beginning
     network_io_start = psutil.net_io_counters(pernic=True)
     
@@ -146,23 +169,158 @@ def get_network_io_per_second(interval=1):
         
     return network_speed
 
+def get_process_count():
+    process_count = len(psutil.pids()) # Get the list of all process IDs
+    print (f"Total number of processes: {process_count}")
+
+def get_top_processes_by_cpu(top_n=10):
+    # Get all processes
+    processes = []
+    for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_info']):
+        try:
+            proc.cpu_percent(interval=None)  # Initialize the CPU percent calculation
+            processes.append(proc)
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+    
+    # Wait for a short period to allow CPU percent calculation
+    time.sleep(1)
+    
+    # Now retrieve the actual CPU percent
+    process_info = []
+    for proc in processes:
+        try:
+            proc_info = proc.as_dict(attrs=['pid', 'name', 'cpu_percent', 'memory_info'])
+            # Filter out the "System Idle Process" and normalize CPU usage
+            if proc_info['name'] != "System Idle Process" and proc_info['cpu_percent'] <= 100:
+                process_info.append(proc_info)
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+
+    # Sort the processes by CPU usage
+    process_info = sorted(process_info, key=lambda proc: proc['cpu_percent'], reverse=True)
+    
+    # Display the top N processes
+    print(f"Top {top_n} processes by CPU usage:")
+    for proc in process_info[:top_n]:
+        print(f"PID: {proc['pid']} | Name: {proc['name']} | CPU: {proc['cpu_percent']:.1f}% | Memory: {proc['memory_info'].rss / (1024 ** 2):.2f} MB")
+
+def get_top_processes_by_mem(top_n=10):
+    # Get all processes
+    processes = []
+    for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_info']):
+        try:
+            proc.cpu_percent(interval=None)  # Initialize the CPU percent calculation
+            processes.append(proc)
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+    
+    # Wait for a short period to allow CPU percent calculation
+    time.sleep(1)
+    
+    # Now retrieve the actual CPU percent
+    process_info = []
+    for proc in processes:
+        try:
+            proc_info = proc.as_dict(attrs=['pid', 'name', 'cpu_percent', 'memory_info'])
+            # Filter out the "System Idle Process" and normalize CPU usage
+            if proc_info['name'] != "System Idle Process" and proc_info['cpu_percent'] <= 100:
+                process_info.append(proc_info)
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+
+    # Sort the processes by CPU usage
+    process_info = sorted(process_info, key=lambda proc: proc['memory_info'], reverse=True)
+    
+    # Display the top N processes
+    print(f"Top {top_n} processes by memory usage:")
+    for proc in process_info[:top_n]:
+        print(f"PID: {proc['pid']} | Name: {proc['name']} | CPU: {proc['cpu_percent']:.1f}% | Memory: {proc['memory_info'].rss / (1024 ** 2):.2f} MB")
+
+def get_event_viewer_stats(log_type='System', event_types=(win32evtlog.EVENTLOG_WARNING_TYPE, win32evtlog.EVENTLOG_ERROR_TYPE), time_period_minutes=60):
+    server = 'localhost'  # The machine to monitor (use 'localhost' for local machine)
+    log = log_type  # The event log type (e.g., 'System', 'Application', 'Security')
+    flags = win32evtlog.EVENTLOG_FORWARDS_READ | win32evtlog.EVENTLOG_SEQUENTIAL_READ
+    event_log_handle = win32evtlog.OpenEventLog(server, log)
+
+    now = datetime.datetime.now()
+    start_time = now - datetime.timedelta(minutes=time_period_minutes)
+    
+    total_errors = 0
+    total_warnings = 0
+    error_rate = 0
+    warning_rate = 0
+
+    events = []
+    while True:
+        records = win32evtlog.ReadEventLog(event_log_handle, flags, 0)
+        if not records:
+            break
+        for event in records:
+            event_time = event.TimeGenerated.Format()
+            event_time = datetime.datetime.strptime(event_time, '%a %b %d %H:%M:%S %Y')
+
+            if event_time >= start_time:
+                if event.EventType == win32evtlog.EVENTLOG_ERROR_TYPE:
+                    total_errors += 1
+                elif event.EventType == win32evtlog.EVENTLOG_WARNING_TYPE:
+                    total_warnings += 1
+
+    win32evtlog.CloseEventLog(event_log_handle)
+
+    elapsed_minutes = (now - start_time).total_seconds() / 60
+    if elapsed_minutes > 0:
+        error_rate = total_errors / elapsed_minutes
+        warning_rate = total_warnings / elapsed_minutes
+
+    return total_errors, total_warnings, error_rate, warning_rate
+
+def display_event_viewer_stats():
+    total_errors, total_warnings, error_rate, warning_rate = get_event_viewer_stats()
+
+    print(f"Total Errors: {total_errors}")
+    print(f"Total Warnings: {total_warnings}")
+    print(f"Error Rate: {error_rate:.2f} per minute")
+    print(f"Warning Rate: {warning_rate:.2f} per minute")
+
+def get_system_boot_and_uptime():
+    # Get the system boot time
+    boot_time_timestamp = psutil.boot_time()
+    boot_time = datetime.datetime.fromtimestamp(boot_time_timestamp)
+    
+    # Calculate the system uptime
+    now = datetime.datetime.now()
+    uptime = now - boot_time
+    
+    # Format the uptime for easier reading
+    days = uptime.days
+    hours, remainder = divmod(uptime.seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    
+    print(f"System Boot Time: {boot_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"System Uptime: {days} days, {hours} hours, {minutes} minutes, {seconds} seconds")
+
 interval = 1
 network_speeds = get_network_io_per_second(interval)
-
 for adapter, speed in network_speeds.items():
     print(f"Adapter: {adapter}")
     print(f"Bytes sent per second: {speed['sent_per_sec']:.2f} B/s")
     print(f"Bytes received per second: {speed['recv_per_sec']:.2f} B/s\n")
-    
-get_disk_usage()
+
+
+
+get_disk_usage_via_wmic()
+
 get_memory_usage()
 get_cpu_usage()
 get_cpu_temperature()
 print(get_cpu_temperature())
 monitor_disk_io(interval=1)
-
-
-
+get_process_count()
+get_top_processes_by_cpu(top_n=10)
+get_top_processes_by_mem(top_n=10)
+display_event_viewer_stats()
+get_system_boot_and_uptime()
 
 
 

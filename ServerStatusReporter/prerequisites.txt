@@ -1,0 +1,15 @@
+This document is to exclusively list what programs and libraries are needed to run this script/program set.
+
+Document Version: 1.0
+-------------------------------------------------------------------------------------------------------------------------------------
+
+Programs: 
+Python 3.12.4
+
+Libraries:
+psutil * 
+platform
+subprocess
+time
+win32evtlog
+datetime
