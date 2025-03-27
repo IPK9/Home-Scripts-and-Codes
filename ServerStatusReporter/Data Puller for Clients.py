@@ -17,59 +17,106 @@ import subprocess
 import time
 import win32evtlog
 import datetime
+import platform
+import logging
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-
-# Get CPU Temperature (Cross Platform)
-def get_cpu_temperature(): # attempts to retrieve cpu temperature
+def get_cpu_temperature():
+    """
+    Retrieves CPU temperature across different operating systems.
+    """
     system = platform.system()
-    if system == "Windows":
-        
-        return get_cpu_temperature_windows()
-    elif system == "Linux":
-        return get_cpu_temperature_linux()
-    elif system == "Darwin":
-        return get_cpu_temperature_mac()
-    else:
-        raise NotImplementedError(f"Unsupported platform: {system}")
+    try:
+        if system == "Windows":
+            return get_cpu_temperature_windows()
+        elif system == "Linux":
+            return get_cpu_temperature_linux()
+        elif system == "Darwin":
+            return get_cpu_temperature_mac()
+        else:
+            raise NotImplementedError(f"Unsupported platform: {system}")
+    except Exception as e:
+        logging.error(f"Error getting CPU temperature: {e}", exc_info=True) # exc_info=True includes the traceback
+        return None  # Or raise the exception if you want the program to halt
 
-def get_cpu_temperature_windows(): # prerequisite for get_cpu_temperature
+
+def get_cpu_temperature_windows():
+    """Retrieves CPU temperature on Windows."""
     try:
         import wmi
-        w = wmi.WMI(namespace='root\\wmi')
-        temperature_info = w.MSAcpi_ThermalZoneTemperature()[0]
-        temperature_celsius = temperature_info.CurrentTemperature / 10.0 - 273.15
-        return temperature_celsius
-        
+        cpubins = wmi.WMI()
+        for cpu in cpubins:
+            # Example: Get % Processor Time
+            cpu_usage = cpu.Win32_Processor()[2]  # Accessing the relevant data
+            logging.info(f"CPU Temperature (Windows): {cpu_usage}")
+            return cpu_usage
     except Exception as e:
-        return f"Could not read temperature on Windows: {e}"
-    
-def get_cpu_temperature_linux(): # prerequisite for get_cpu_temperature
+        logging.error(f"Error getting CPU temperature (Windows): {e}", exc_info=True)
+        return None
+
+
+def get_cpu_temperature_linux():
+    """Retrieves CPU temperature on Linux."""
     try:
-        # using lm-sensors
-        result = subprocess.run(['sensors'], stdout=subprocess.PIPE, text=True)
-        for line in result.stdout.splitlines():
-            if 'Core 0:' in line:
-                return float(line.split()[2].replace('°C', ''))
+        # Example using `sensors` command (requires `sensors` to be installed)
+        import subprocess
+        result = subprocess.run(['sensors'], capture_output=True, text=True, check=True)
+        output = result.stdout
+        # Parse the output (this part needs to be adapted based on the output format of 'sensors')
+        for line in output.splitlines():
+            if "temp" in line.lower():
+                try:
+                    temperature = float(line.split(":")[1].strip())
+                    logging.info(f"CPU Temperature (Linux): {temperature}")
+                    return temperature
+                except ValueError:
+                    logging.warning(f"Could not parse temperature from line: {line}")
+                    pass
+        logging.warning("No temperature found in 'sensors' output.")
+        return None
+    except FileNotFoundError:
+        logging.error("The 'sensors' command-line tool is not installed.")
+        return None
     except Exception as e:
-        return f"Could not read temperature on Linux: {e}"
-    
-def get_cpu_temperature_mac(): # prerequisite for get_cpu_temperature
+        logging.error(f"Error getting CPU temperature (Linux): {e}", exc_info=True)
+        return None
+
+
+def get_cpu_temperature_mac():
+    """Retrieves CPU temperature on macOS."""
     try:
-        #using osx-cpu-temp
-        result = subprocess.run(['osx-cpu-temp'], stfout=subprocess.PIPE, text=True)
-        return float(result.stdout.strip().replace('°C', ''))
+        import subprocess
+        result = subprocess.run(['powermetrics', '-c', 'cpu'], capture_output=True, text=True, check=True)
+        output = result.stdout
+        # Parse the output (this part needs to be adapted based on the output format of 'powermetrics')
+        for line in output.splitlines():
+            if "CPU Temperature" in line:
+                try:
+                    temperature = float(line.split(":")[1].strip())
+                    logging.info(f"CPU Temperature (macOS): {temperature}")
+                    return temperature
+                except ValueError:
+                    logging.warning(f"Could not parse temperature from line: {line}")
+                    pass
+        logging.warning("No temperature found in 'powermetrics' output.")
+        return None
+    except FileNotFoundError:
+        logging.error("The 'powermetrics' command-line tool is not installed.")
+        return None
     except Exception as e:
-        return f"Could not read temperature on Mac: {e}"
+        logging.error(f"Error getting CPU temperature (macOS): {e}", exc_info=True)
+        return None
 
 
 def get_logical_drives():
     try:
         # Use WMIC to list logical drives
         command = "wmic logicaldisk get DeviceID"
-        result = subprocess.check_output(command, shell=True).decode().strip().split("\n")[1:]
-        # Clean up the result to get a list of drive letters
-        drives = [drive.strip() for drive in result if drive.strip()]
+        result = subprocess.check_output(command, shell=True, text=True).strip().split("\n")[1:]  # text=True handles decoding
+        # Use a regular expression to extract the drive letters
+        drives = [re.match(r"(\w:)", line).group(1) for line in result if line]
         return drives
     except subprocess.CalledProcessError as e:
         print(f"Failed to retrieve logical drives - {e}")

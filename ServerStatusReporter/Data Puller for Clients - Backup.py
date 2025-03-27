@@ -1,63 +1,75 @@
-import socket
-import json
+#
+#       ServerStatus - V1.0
+#
+#   This section of the program is purely to pull data from the client
+#   machines when requested by the server machine. This is just a small
+#   snippet of code from what will be integrated into the main program
+#   I believe this is the best way of testing as I don't need the server
+#   running to get the metrics as they will be sent after being acquired.
+#   
+#       
+
+
+# import libraries
 import psutil
 import platform
 import subprocess
 import time
 import win32evtlog
 import datetime
-import platform
 import logging
-# JSON file path
-CONFIG_FILE = 'config.json'
 
-# --- JSON File Handling Functions ---
 
-def load_config():
-    """Loads configuration from the JSON file."""
+# Get CPU Temperature (Cross Platform)
+def get_cpu_temperature(): # attempts to retrieve cpu temperature
+    system = platform.system()
+    if system == "Windows":
+        
+        return get_cpu_temperature_windows()
+    elif system == "Linux":
+        return get_cpu_temperature_linux()
+    elif system == "Darwin":
+        return get_cpu_temperature_mac()
+    else:
+        raise NotImplementedError(f"Unsupported platform: {system}")
+
+def get_cpu_temperature_windows(): # prerequisite for get_cpu_temperature
     try:
-        with open(CONFIG_FILE, 'r') as f:
-            config = json.load(f)
-            return config
-    except FileNotFoundError:
-        print(f"Config file '{CONFIG_FILE}' not found.  Creating a default one.")
-        # Create a default config if the file doesn't exist
-        default_config = {
-            "server_address": "localhost",
-            "server_port": 12345
-        }
-        save_config(default_config)
-        return default_config
-    except json.JSONDecodeError as e:
-        print(f"Error decoding JSON: {e}.  Using default config.")
-        return {
-            "server_address": "localhost",
-            "server_port": 12345
-        }
-
-def save_config(config):
-    """Saves the configuration to the JSON file."""
-    try:
-        with open(CONFIG_FILE, 'w') as f:
-            json.dump(config, f, indent=4)  # indent for readability
+        import wmi
+        w = wmi.WMI(namespace='root\\wmi')
+        temperature_info = w.MSAcpi_ThermalZoneTemperature()[0]
+        temperature_celsius = temperature_info.CurrentTemperature / 10.0 - 273.15
+        return temperature_celsius
+        
     except Exception as e:
-        print(f"Error saving config: {e}")
+        return f"Could not read temperature on Windows: {e}"
+    
+def get_cpu_temperature_linux(): # prerequisite for get_cpu_temperature
+    try:
+        # using lm-sensors
+        result = subprocess.run(['sensors'], stdout=subprocess.PIPE, text=True)
+        for line in result.stdout.splitlines():
+            if 'Core 0:' in line:
+                return float(line.split()[2].replace('°C', ''))
+    except Exception as e:
+        return f"Could not read temperature on Linux: {e}"
+    
+def get_cpu_temperature_mac(): # prerequisite for get_cpu_temperature
+    try:
+        #using osx-cpu-temp
+        result = subprocess.run(['osx-cpu-temp'], stfout=subprocess.PIPE, text=True)
+        return float(result.stdout.strip().replace('°C', ''))
+    except Exception as e:
+        return f"Could not read temperature on Mac: {e}"
 
 
-# --- Configuration Loading ---
-config = load_config()
-
-server_address = config['server_address']
-server_port = config['server_port']
-
-# Definition Statements which will  be called upon when the server requests data metrics
 def get_logical_drives():
     try:
         # Use WMIC to list logical drives
         command = "wmic logicaldisk get DeviceID"
-        result = subprocess.check_output(command, shell=True, text=True).strip().split("\n")[1:]  # text=True handles decoding
-        # Use a regular expression to extract the drive letters
-        drives = [re.match(r"(\w:)", line).group(1) for line in result if line]
+        result = subprocess.check_output(command, shell=True).decode().strip().split("\n")[1:]
+        # Clean up the result to get a list of drive letters
+        drives = [drive.strip() for drive in result if drive.strip()]
         return drives
     except subprocess.CalledProcessError as e:
         print(f"Failed to retrieve logical drives - {e}")
@@ -271,30 +283,46 @@ def display_event_viewer_stats():
     print(f"Error Rate: {error_rate:.2f} per minute")
     print(f"Warning Rate: {warning_rate:.2f} per minute")
 
+def get_system_boot_and_uptime():
+    # Get the system boot time
+    boot_time_timestamp = psutil.boot_time()
+    boot_time = datetime.datetime.fromtimestamp(boot_time_timestamp)
+    
+    # Calculate the system uptime
+    now = datetime.datetime.now()
+    uptime = now - boot_time
+    
+    # Format the uptime for easier reading
+    days = uptime.days
+    hours, remainder = divmod(uptime.seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    
+    print(f"System Boot Time: {boot_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"System Uptime: {days} days, {hours} hours, {minutes} minutes, {seconds} seconds")
 
-# --- Send Metric Function (unchanged) ---
-def send_metric(metric_name, value):
-    """Sends a metric to the server."""
-    try:
-        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client_socket.connect((server_address, server_port))
+interval = 1
+network_speeds = get_network_io_per_second(interval)
+for adapter, speed in network_speeds.items():
+    print(f"Adapter: {adapter}")
+    print(f"Bytes sent per second: {speed['sent_per_sec']:.2f} B/s")
+    print(f"Bytes received per second: {speed['recv_per_sec']:.2f} B/s\n")
 
-        metric_data = {
-            "timestamp": "2023-10-27T10:00:00Z",
-            "metric_name": metric_name,
-            "value": value
-        }
 
-        json_data = json.dumps(metric_data)
-        client_socket.sendall(json_data.encode('utf-8'))
 
-        client_socket.close()
-        print(f"Sent metric: {metric_name} = {value}")
+get_disk_usage_via_wmic()
 
-    except socket.error as e:
-        print(f"Socket error: {e}")
-    except Exception as e:
-        print(f"An error occurred: {e}")
+get_memory_usage()
+get_cpu_usage()
+get_cpu_temperature()
+print(get_cpu_temperature())
+monitor_disk_io(interval=1)
+get_process_count()
+get_top_processes_by_cpu(top_n=10)
+get_top_processes_by_mem(top_n=10)
+display_event_viewer_stats()
+get_system_boot_and_uptime()
 
-if __name__ == "__main__":
-    send_metric("cpu_usage", 85.2)
+
+
+
+
